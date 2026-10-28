@@ -1,0 +1,385 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="glass-panel" style="max-width: 700px; width: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+        <div>
+            <h2 style="margin: 0; color: #f8fafc;">Candidate Interview</h2>
+            <span style="font-size: 0.9rem; color: #94a3b8;">User: <strong>{{ session['candidate_name'] }}</strong></span>
+            <p style="margin: 0.5rem 0 0 0; color: #fff; opacity: 0.8;">Read the question, start the timer, and submit your response.</p>
+        </div>
+        
+        <!-- Live Proctoring Cam -->
+        <div style="width: 140px; height: 105px; background: #0f172a; border-radius: 8px; overflow: hidden; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.3); position: relative;">
+            <video id="proctor-cam" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+            <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(239, 68, 68, 0.8); color: white; font-size: 0.6rem; padding: 2px 4px; border-radius: 4px; font-weight: bold; display: flex; align-items: center; letter-spacing: 0.5px;">
+                <span style="width: 6px; height: 6px; background: white; border-radius: 50%; display: inline-block; margin-right: 4px; animation: pulse 1s infinite; box-shadow: 0 0 5px #fff;"></span> REC
+            </div>
+            <div style="position: absolute; top: 4px; right: 4px; font-size: 0.55rem; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 2px;">
+                PROCTOR AI
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div style="margin-bottom: 2.5rem;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 600;">
+            <span style="text-transform: uppercase; letter-spacing: 1px;">Interview Progress</span>
+            <span id="progress-text">1 of {{ questions|length }}</span>
+        </div>
+        <div style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; height: 8px; overflow: hidden;">
+            <div id="progress-bar" style="width: {{ (1 / questions|length) * 100 }}%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); transition: width 0.4s ease, box-shadow 0.4s ease; box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);"></div>
+        </div>
+    </div>
+
+    <div id="questionsContainer" style="position: relative; min-height: 400px;">
+        
+        <!-- AI Loading Overlay -->
+        <div id="ai-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 50; border-radius: 16px; flex-direction: column; text-align: center; border: 1px solid rgba(56, 189, 248, 0.2);">
+            <div style="border: 4px solid rgba(255,255,255,0.05); border-top: 4px solid var(--accent); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);"></div>
+            <p style="margin-top: 1.5rem; color: #fff; font-weight: 600; font-size: 1.15rem; letter-spacing: 0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">🧠 AI Engine Synthesizing...</p>
+            <p style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">Evaluating syntax, relevance, and communication.</p>
+        </div>
+
+        {% for q in questions %}
+        <div class="question-card" id="question_{{ loop.index0 }}" style="display: {% if loop.index0 == 0 %}block{% else %}none{% endif %};">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="font-size: 1.25rem; margin: 0; line-height: 1.5; color: var(--text-main); display: flex; align-items: center;">
+                    <span style="color: var(--accent); margin-right: 0.5rem;">Q{{ loop.index }}:</span>{{ q.question_text }}
+                    <button type="button" class="btn btn-outline" onclick="speakQuestion('{{ q.question_text|escape }}')" style="padding: 0.2rem 0.5rem; margin-left: 10px; font-size: 0.8rem;" title="Listen to Question">🔊</button>
+                </h3>
+                <div class="timer-badge" id="timer_{{ loop.index0 }}" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0.3rem 0.8rem; border-radius: 20px; font-weight: 700; font-size: 0.9rem; border: 1px solid rgba(239, 68, 68, 0.5);">
+                    ⏱️ 90s
+                </div>
+            </div>
+            
+            <form id="form_{{ loop.index0 }}" class="answer-form">
+                <input type="hidden" name="question_id" value="{{ q.question_id }}">
+                <input type="hidden" name="focus_violations" id="focus_violations_{{ loop.index0 }}" value="0">
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <label style="margin: 0;">Or type your answer below:</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <select id="lang_select_{{ loop.index0 }}" style="display: none; padding: 0.2rem; font-size: 0.8rem; background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; outline: none;">
+                                <option value="python">Python</option>
+                                <option value="javascript">JavaScript</option>
+                                <option value="sql">SQL</option>
+                            </select>
+                            <button type="button" class="btn btn-outline code-btn" data-index="{{ loop.index0 }}" style="padding: 0.2rem 0.6rem; font-size: 0.8rem; border-color: rgba(56, 189, 248, 0.5); color: #38bdf8;">
+                                💻 Switch to Code Editor
+                            </button>
+                        </div>
+                    </div>
+                    <textarea name="text_answer" id="text_answer_{{ loop.index0 }}" rows="6" placeholder="Start typing your answer here..."></textarea>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1.5rem; margin-top: 1rem;">
+                    <div>
+                        <button type="button" class="btn btn-outline record-btn" data-index="{{ loop.index0 }}" style="padding: 0.5rem 1rem;">
+                            🎙️ Record Audio
+                        </button>
+                        <span class="recording-status" style="display: none; color: #ef4444; font-size: 0.9rem; margin-left: 10px; animation: pulse 1.5s infinite;">● Recording...</span>
+                    </div>
+
+                    <button type="button" class="btn submit-btn" data-index="{{ loop.index0 }}" style="background: linear-gradient(90deg, #10b981 0%, #059669 100%);">Submit Answer</button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Completion Message -->
+    <div id="completionMessage" style="display: none; text-align: center; padding: 2rem 0;">
+        <h2 style="font-size: 2rem; color: #4ade80; margin-bottom: 1rem;">Interview Complete!</h2>
+        <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem;">Your responses are being analyzed by our AI system.</p>
+        <a href="/" class="btn btn-outline" style="border-color: rgba(255,255,255,0.2); color: #fff;">Return Home</a>
+    </div>
+</div>
+
+<style>
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        50% { box-shadow: 0 0 15px 5px rgba(239, 68, 68, 0.5); }
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .timer-badge { transition: all 0.3s ease; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+</style>
+
+<script>
+    let isRecording = false;
+    let currentRecognition = null;
+    let activeIndex = 0;
+    const totalQuestions = {{ questions|length }};
+    let codeEditors = {}; // Store instances of CodeMirror
+    
+    // Anti-Cheat: Keep track of focus violations globally across the session, but assign to individual questions that get caught
+    let focusViolations = 0;
+    let timerInterval;
+    let timeLeft = 90;
+
+    // Turn on live proctoring webcam
+    async function startProctoring() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            document.getElementById('proctor-cam').srcObject = stream;
+        } catch (err) {
+            console.warn("Proctoring Webcam Access Denied or Unavailable:", err);
+            // Ignore error, but in a real enterprise app we would block the interview until cam is active
+        }
+    }
+    startProctoring();
+
+    window.addEventListener('blur', () => {
+        // If they leave the tab/window, increase violation count
+        focusViolations++;
+        // Update the form's hidden input
+        const currentViolationInput = document.getElementById(`focus_violations_${activeIndex}`);
+        if(currentViolationInput) {
+            currentViolationInput.value = parseInt(currentViolationInput.value) + 1;
+        }
+    });
+
+    // Anti-Cheat: Prevent Pasting (only in normal textareas, CodeMirror has its own handling if needed, but we'll apply it widely)
+    document.querySelectorAll('textarea').forEach(ta => {
+        ta.addEventListener('paste', e => {
+            // Allow pasting if they are explicitly using the Code Editor (coding interviews require pasting sometimes)
+            // But block it for standard answers. Let's allow it globally IF it's a code block, but since we attach this before CodeMirror hides the textarea, CodeMirror handles its own paste events.
+            if(ta.style.display !== 'none') {
+                e.preventDefault();
+                alert('🚫 Copy/Paste is disabled by Anti-Cheat policies! Please type or speak your answer naturally.');
+            }
+        });
+    });
+
+    // Initialize Code Editor
+    document.querySelectorAll('.code-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const index = this.getAttribute('data-index');
+            const textArea = document.getElementById(`text_answer_${index}`);
+            const langSelect = document.getElementById(`lang_select_${index}`);
+            
+            if (!codeEditors[index]) {
+                // Stop recording if active
+                if(isRecording && currentRecognition) {
+                    currentRecognition.stop();
+                    isRecording = false;
+                    document.querySelector(`.record-btn[data-index="${index}"]`).innerText = '🎙️ Record Audio';
+                    document.querySelector(`#status_${index}`).style.display = 'none';
+                }
+                
+                langSelect.style.display = 'block'; // Show the language dropdown
+                
+                let editor = CodeMirror.fromTextArea(textArea, {
+                    mode: langSelect.value, // dynamically grab from select
+                    theme: "dracula",
+                    lineNumbers: true,
+                    indentUnit: 4,
+                    matchBrackets: true
+                });
+                
+                // Shift syntax highlighting dynamically
+                langSelect.addEventListener('change', function() {
+                    editor.setOption('mode', this.value);
+                    if (editor.getValue().startsWith("// Write your") || editor.getValue().startsWith("# Write your") || editor.getValue().startsWith("-- Write your")) {
+                        let commentChar = this.value === 'python' ? '#' : (this.value === 'sql' ? '--' : '//');
+                        editor.setValue(`${commentChar} Write your active code here...\n`);
+                    }
+                });
+                
+                // Set initial text
+                if (textArea.value === "") {
+                    editor.setValue("# Write your code here...\n");
+                }
+                
+                // Sync to hidden textarea so it gets submitted
+                editor.on('change', function() {
+                    textArea.value = editor.getValue();
+                });
+                
+                codeEditors[index] = editor;
+                this.innerText = '✅ Code Editor Active';
+                this.disabled = true;
+            }
+        });
+    });
+
+    // Virtual Interviewer (Text-to-Speech)
+    function speakQuestion(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // Stop talking if already talking
+            const msg = new SpeechSynthesisUtterance();
+            msg.text = text;
+            msg.lang = 'en-US';
+            msg.rate = 1.0; 
+            window.speechSynthesis.speak(msg);
+        }
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timeLeft = 90; 
+        const timerDisplay = document.getElementById(`timer_${activeIndex}`);
+        
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            if(timerDisplay) {
+                timerDisplay.innerText = `⏱️ ${timeLeft}s`;
+                if(timeLeft <= 10) {
+                    timerDisplay.style.background = 'rgba(239, 68, 68, 0.5)';
+                    timerDisplay.style.color = '#fff';
+                } else if(timeLeft <= 30) {
+                    timerDisplay.style.color = '#facc15';
+                }
+            }
+
+            if(timeLeft <= 0) {
+                clearInterval(timerInterval);
+                // Auto submit form
+                const submitBtn = document.querySelector(`.submit-btn[data-index="${activeIndex}"]`);
+                if(submitBtn) {
+                    submitBtn.click();
+                }
+            }
+        }, 1000);
+    }
+    
+    // Start timer for the first question initially
+    startTimer();
+
+    document.querySelectorAll('.record-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const index = this.getAttribute('data-index');
+            const statusBox = this.nextElementSibling;
+            const textArea = document.getElementById(`text_answer_${index}`);
+            
+            if (!isRecording) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    alert("Your browser does not support live speech recognition. Please type your answer or use Google Chrome / Microsoft Edge.");
+                    return;
+                }
+                
+                currentRecognition = new SpeechRecognition();
+                currentRecognition.continuous = true;
+                currentRecognition.interimResults = true;
+                currentRecognition.lang = 'en-US';
+
+                currentRecognition.onresult = (event) => {
+                    let finalTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript + ' ';
+                        }
+                    }
+                    if (finalTranscript !== '') {
+                        textArea.value += finalTranscript;
+                    }
+                };
+
+                currentRecognition.onerror = (event) => {
+                    console.error("Speech recognition error", event.error);
+                };
+
+                currentRecognition.start();
+                isRecording = true;
+                this.innerText = '⏹️ Stop Recording';
+                statusBox.style.display = 'inline-block';
+            } else {
+                if (currentRecognition) {
+                    currentRecognition.stop();
+                }
+                isRecording = false;
+                this.innerText = '🎙️ Record Audio';
+                statusBox.style.display = 'none';
+            }
+        });
+    });
+
+    document.querySelectorAll('.submit-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            clearInterval(timerInterval); // stop current timer
+            if (isRecording) {
+                if(currentRecognition) currentRecognition.stop();
+                isRecording = false;
+            }
+
+            const index = parseInt(this.getAttribute('data-index'));
+            const form = document.querySelector(`#form_${index}`);
+            const btnOriginalText = this.innerText;
+            
+            this.innerText = 'Analyzing...';
+            this.disabled = true;
+
+            let formData = form.formDataOverride || new FormData(form);
+            // Ensure focus_violations are updated just in case before sending
+            const viol = document.getElementById(`focus_violations_${index}`).value;
+            formData.set('focus_violations', viol);
+
+            document.getElementById('ai-overlay').style.display = 'flex'; // Show loading screen
+
+            try {
+                const response = await fetch('/submit_answer', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                document.getElementById('ai-overlay').style.display = 'none'; // Hide loading screen
+                
+                if (response.ok) {
+                    window.speechSynthesis.cancel(); // Stop any reading
+                    document.querySelector(`#question_${index}`).style.display = 'none';
+                    if (index + 1 < totalQuestions) {
+                        activeIndex = index + 1;
+                        document.querySelector(`#question_${activeIndex}`).style.display = 'block';
+                        
+                        // Update Progress Bar
+                        const newProgress = ((activeIndex + 1) / totalQuestions) * 100;
+                        document.getElementById('progress-bar').style.width = newProgress + '%';
+                        document.getElementById('progress-text').innerText = (activeIndex + 1) + ' of ' + totalQuestions;
+
+                        startTimer();
+                    } else {
+                        // Turn off webcam since interview is done
+                        const videoEl = document.getElementById('proctor-cam');
+                        if (videoEl && videoEl.srcObject) {
+                            videoEl.srcObject.getTracks().forEach(track => track.stop());
+                        }
+
+                        // Max progress reached
+                        document.getElementById('progress-bar').style.width = '100%';
+                        document.getElementById('progress-text').innerText = 'Complete';
+                        
+                        document.getElementById('completionMessage').style.display = 'block';
+                        const reportLink = document.createElement('a');
+                        reportLink.href = result.report_url;
+                        reportLink.className = 'btn';
+                        reportLink.style.marginTop = '1rem';
+                        reportLink.innerText = 'View Your Evaluation Report';
+                        document.getElementById('completionMessage').appendChild(reportLink);
+                    }
+                } else {
+                    alert('Error: ' + result.error);
+                    this.innerText = btnOriginalText;
+                    this.disabled = false;
+                    startTimer(); // resume timer gracefully
+                }
+            } catch (error) {
+                document.getElementById('ai-overlay').style.display = 'none'; // Hide loading screen
+                alert('Submission failed. Please try again.');
+                this.innerText = btnOriginalText;
+                this.disabled = false;
+                startTimer();
+            }
+        });
+    });
+</script>
+{% endblock %}

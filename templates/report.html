@@ -1,0 +1,174 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<div class="glass-panel" id="report-content" style="max-width: 800px; width: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;" data-html2canvas-ignore>
+        <h2 style="margin: 0;">Topic Evaluation Report</h2>
+        <div>
+            <button onclick="downloadPDF()" class="btn" style="padding: 0.5rem 1rem; margin-right: 0.5rem; background: #6366f1;">📥 PDF</button>
+            <a href="/dashboard" class="btn btn-outline" style="padding: 0.5rem 1rem; border-color: rgba(255,255,255,0.2); color: #fff;">Dashboard</a>
+        </div>
+    </div>
+
+    <!-- For PDF Title Display -->
+    <h2 style="display: none; margin-bottom: 2rem; color: #fff; text-align: center;" id="pdf-title">AI Interview Evaluation Report</h2>
+
+    <div style="background: rgba(0,0,0,0.2); padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;">
+        <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">Candidate</p>
+        <h3 style="margin: 0.5rem 0 0 0; font-size: 1.5rem;">{{ overall.name }}</h3>
+        <p style="margin: 0; margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">Interview Topic: <span style="color: #fff">{{ overall.topic }}</span></p>
+    </div>
+
+    <!-- Scores Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2.5rem;">
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 12px; text-align: center;">
+            <p style="margin: 0 0 0.5rem 0; color: var(--text-muted); font-size: 0.85rem;">OVERALL SCORE</p>
+            <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent);">{{ overall.overall_score }}</div>
+            <p style="margin: 0; font-size: 0.8rem; color: rgba(255,255,255,0.4);">/ 10</p>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 12px; text-align: center;">
+            <p style="margin: 0 0 0.5rem 0; color: var(--text-muted); font-size: 0.85rem;">AVG RELEVANCE</p>
+            <div style="font-size: 2rem; font-weight: 600;">{{ overall.avg_relevance }}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 12px; text-align: center;">
+            <p style="margin: 0 0 0.5rem 0; color: var(--text-muted); font-size: 0.85rem;">AVG COMM</p>
+            <div style="font-size: 2rem; font-weight: 600;">{{ overall.avg_communication }}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 12px; text-align: center;">
+            <p style="margin: 0 0 0.5rem 0; color: var(--text-muted); font-size: 0.85rem;">AVG CONF</p>
+            <div style="font-size: 2rem; font-weight: 600;">{{ overall.avg_confidence }}</div>
+        </div>
+    </div>
+    
+    <!-- AI Analytics Chart + Anti Cheat -->
+    <div style="display: flex; flex-wrap: wrap; gap: 2rem; margin-bottom: 2.5rem; justify-content: center; align-items: center;">
+        <div style="flex: 1; min-width: 300px; max-width: 400px; background: rgba(0,0,0,0.1); padding: 1rem; border-radius: 12px;">
+            <canvas id="radarChart"></canvas>
+        </div>
+        
+        <div style="flex: 1; min-width: 250px;">
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem;">
+                <h4 style="margin: 0 0 0.5rem 0; color: #fca5a5; display: flex; align-items: center;"><i class="fas fa-shield-alt" style="margin-right: 8px;"></i> AI Proctor & Anti-Cheat</h4>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #ef4444;">{{ overall.total_violations|default(0) }} <span style="font-size: 1rem; font-weight: 400;">Flags</span></div>
+                <p style="margin: 0; font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-top: 0.5rem;"><strong>Cam Status:</strong> Active during session.<br><strong>Flags:</strong> Candidate left interview window/tab during this topic.</p>
+            </div>
+            
+            <div style="background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.3); padding: 1.5rem; border-radius: 12px;">
+                <h4 style="margin: 0 0 0.5rem 0; color: #fde047; display: flex; align-items: center;"><i class="fas fa-comment-dots" style="margin-right: 8px;"></i> Overall Filler Words</h4>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #facc15;">{{ overall.total_fillers|default(0) }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Recommendation -->
+    <div style="border-left: 4px solid {% if overall.overall_score >= 7 %}#4ade80{% elif overall.overall_score >= 4 %}#facc15{% else %}#f87171{% endif %}; padding-left: 1.5rem; margin-top: 1rem;">
+        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: #e2e8f0;">Final Recommendation</h3>
+        <p style="margin: 0; font-size: 1.25rem; font-weight: 600; color: {% if overall.overall_score >= 7 %}#4ade80{% elif overall.overall_score >= 4 %}#facc15{% else %}#f87171{% endif %};">
+            {% if overall.overall_score >= 7 %}
+                Strongly Consider for next round.
+            {% elif overall.overall_score >= 4 %}
+                Consider with reservations. Needs technical review.
+            {% else %}
+                Do not clear for next round.
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Detailed Question Breakdown -->
+    <h3 style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; margin-top: 3rem;">Individual Question Details</h3>
+    {% for detail in details %}
+    <div style="background: rgba(0,0,0,0.2); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <h4 style="margin: 0; font-weight: 600; line-height: 1.5; color: var(--accent); max-width: 80%;">{{ detail.question_text }}</h4>
+            <div style="text-align: right;">
+                <span style="font-weight: 700; font-size: 1.2rem; color: {% if detail.final_score >= 7 %}#4ade80{% elif detail.final_score >= 4 %}#facc15{% else %}#f87171{% endif %};">{{ detail.final_score }}</span>
+                <span style="font-size: 0.8rem; color: #64748b;"> / 10</span>
+            </div>
+        </div>
+        
+        <div style="margin: 1rem 0 0.5rem 0; color: var(--text-muted); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <p style="margin: 0;">Candidate Transcript:</p>
+            <span style="font-size: 0.8rem;">
+                {% if detail.focus_violations and detail.focus_violations > 0 %}<span style="color: #ef4444; margin-left: 10px;">🚩 {{ detail.focus_violations }} Anti-Cheat Flags</span>{% endif %}
+                {% if detail.filler_words_count and detail.filler_words_count > 0 %}<span style="color: #facc15; margin-left: 10px;">💬 {{ detail.filler_words_count }} Fillers</span>{% endif %}
+            </span>
+        </div>
+        <pre style="margin: 0.5rem 0 0 0; font-family: monospace; font-size: 0.95rem; white-space: pre-wrap; line-height: 1.6; padding: 1rem; background: rgba(255,255,255,0.02); border-left: 3px solid var(--glass-border); border-radius: 4px;">{{ detail.transcript }}</pre>
+        
+        <div style="display: flex; gap: 1.5rem; margin-top: 1rem; font-size: 0.85rem; color: #94a3b8;">
+            <span>Relevance: <strong style="color: #fff;">{{ detail.relevance_score }}</strong></span>
+            <span>Communication: <strong style="color: #fff;">{{ detail.communication_score }}</strong></span>
+            <span>Confidence: <strong style="color: #fff;">{{ detail.confidence_score }}</strong></span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+    // Initialize Chart.js Radar Chart
+    const ctx = document.getElementById('radarChart').getContext('2d');
+    const radarChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['Relevance', 'Communication', 'Confidence', 'Tech Alignment', 'Overall Score'],
+            datasets: [{
+                label: 'Candidate Profile',
+                data: [
+                    {{ overall.avg_relevance }}, 
+                    {{ overall.avg_communication }}, 
+                    {{ overall.avg_confidence }}, 
+                    {{ overall.avg_relevance|float * 1.1 }}, // proxy for coverage
+                    {{ overall.overall_score }}
+                ],
+                backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                borderColor: 'rgba(56, 189, 248, 1)',
+                pointBackgroundColor: 'rgba(56, 189, 248, 1)',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: 'rgba(56, 189, 248, 1)'
+            }]
+        },
+        options: {
+            scales: {
+                r: {
+                    angleLines: { color: 'rgba(255,255,255,0.1)' },
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    pointLabels: { color: '#94a3b8', font: { size: 12 } },
+                    ticks: {
+                        color: '#94a3b8',
+                        backdropColor: 'transparent',
+                        min: 0,
+                        max: 10
+                    }
+                }
+            },
+            plugins: {
+                legend: { labels: { color: '#fff' } }
+            }
+        }
+    });
+
+    // PDF Download Logic
+    function downloadPDF() {
+        const element = document.getElementById('report-content');
+        
+        // Show temporary title for PDF
+        document.getElementById('pdf-title').style.display = 'block';
+
+        const opt = {
+            margin:       0.5,
+            filename:     '{{ overall.name }}_{{ overall.topic|replace(" ", "_") }}_Report.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0f172a' },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        
+        html2pdf().set(opt).from(element).save().then(() => {
+            document.getElementById('pdf-title').style.display = 'none';
+        });
+    }
+</script>
+{% endblock %}

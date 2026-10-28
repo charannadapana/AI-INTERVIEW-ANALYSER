@@ -1,0 +1,85 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="glass-panel" style="max-width: 1000px; width: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h2 style="margin: 0; color: #f8fafc;">Manage Question Bank</h2>
+        <div>
+            <a href="/dashboard" class="btn btn-outline" style="padding: 0.5rem 1rem; border-color: rgba(255,255,255,0.2); color: #fff; margin-right: 0.5rem;">Back to Dashboard</a>
+            <button onclick="document.getElementById('addFormContainer').style.display='block'" class="btn" style="padding: 0.5rem 1rem; background: #10b981;">+ Add Question</button>
+        </div>
+    </div>
+
+    <!-- Hidden Form to Add New Question -->
+    <div id="addFormContainer" style="display: none; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h3 style="margin-top: 0; color: var(--accent);">Add New Question</h3>
+        <form action="/add_question" method="POST" style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
+            <div>
+                <label>Topic Category</label>
+                <select name="topic" required style="width: 100%; padding: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;">
+                    <option style="background:var(--bg-card); color:#fff" value="Web Development">Web Development</option>
+                    <option style="background:var(--bg-card); color:#fff" value="Machine Learning">Machine Learning</option>
+                    <option style="background:var(--bg-card); color:#fff" value="Python Programming">Python Programming</option>
+                    <option style="background:var(--bg-card); color:#fff" value="JavaScript Algorithms">JavaScript Algorithms</option>
+                    <option style="background:var(--bg-card); color:#fff" value="Data Science">Data Science</option>
+                </select>
+            </div>
+            <div>
+                <label>Question Text</label>
+                <input type="text" name="question_text" placeholder="e.g., Explain the concept of REST APIs..." required style="width: 100%; padding: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;">
+            </div>
+            <div>
+                <label>Expected Model Answer</label>
+                <textarea name="expected_answer" rows="3" placeholder="Provide the golden standard answer for the AI to compare against..." required style="width: 100%; padding: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;"></textarea>
+            </div>
+            <div>
+                <label>Required NLP Skills / Keywords (comma-separated)</label>
+                <input type="text" name="required_skills" placeholder="e.g., HTTP, requests, REST, client-server" required style="width: 100%; padding: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;">
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem;">
+                <button type="button" class="btn btn-outline" onclick="document.getElementById('addFormContainer').style.display='none'">Cancel</button>
+                <button type="submit" class="btn" style="background: #10b981;">Save to Database</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Questions Table -->
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; color: #cbd5e1; font-size: 0.9rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <th style="padding: 1rem; font-weight: 600; color: #94a3b8; width: 15%;">Topic</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #94a3b8; width: 35%;">Question</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #94a3b8; width: 40%;">Required Keywords</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #94a3b8; width: 10%;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in questions %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 1.25rem 1rem;">
+                        <span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; white-space: nowrap;">
+                            {{ q.topic }}
+                        </span>
+                    </td>
+                    <td style="padding: 1.25rem 1rem; color: #fff;">{{ q.question_text }}</td>
+                    <td style="padding: 1.25rem 1rem; color: var(--text-muted);">{{ q.required_skills }}</td>
+                    <td style="padding: 1.25rem 1rem;">
+                        <form action="/delete_question/{{ q.question_id }}" method="POST" onsubmit="return confirm('WARNING: Are you sure you want to permanently delete this question from the database?');">
+                            <button type="submit" class="btn btn-outline" style="padding: 0.3rem 0.6rem; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; font-size: 0.8rem;">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="padding: 2rem; text-align: center; color: #64748b;">No questions available. Please add some!</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
