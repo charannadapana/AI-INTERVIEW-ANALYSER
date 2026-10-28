@@ -75,7 +75,7 @@ graph TD;
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/Simhadri1426/ai-interview-analyzer.git
+   git clone https://github.com/charannadapana/AI-INTERVIEW-ANALYSER.git
    cd ai-interview-analyzer
    ```
 2. **Setup the Virtual Environment & Dependencies:**
